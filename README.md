@@ -1,2 +1,2 @@
 # localLLM
-Local LLM with RAG.
+Local LLM (ollama) with RAG.

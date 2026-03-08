@@ -114,7 +114,7 @@ def index_documents(chunks, embedding_function, persist_directory=CHROMA_PATH):
 
 
 ### Build the RAG Chain ###
-def create_rag_chain(vector_store, llm_model_name="qwen3:8b", context_window=8192):
+def create_rag_chain(vector_store, llm_model_name="qwen3:0.6b", context_window=8192):
     """Creates the RAG chain."""
     # Initialize the LLM
     llm = ChatOllama(
@@ -196,8 +196,8 @@ if __name__ == "__main__":
     rag_chain = create_rag_chain(vector_store, llm_model_name="qwen3:0.6b") # Use the chosen Qwen 3 model
 
     # 6. Query
-    query_question = "Summarize the experience of the person."
+    query_question = "Summarize the job experience of the person."
     query_rag(rag_chain, query_question)
 
-    query_question_2 = "What other similar jobs would they be able to apply for?"
+    query_question_2 = "Summarize the education of the person."
     query_rag(rag_chain, query_question_2)

@@ -1,11 +1,7 @@
-import os
-from dotenv import load_dotenv
 from langchain.tools import tool
-import datetime
 from langchain_ollama import ChatOllama
-from langsmith import Client
-from langchain.agents import create_tool_calling_agent
-from langchain.agents import AgentExecutor
+from langchain.agents import create_agent
+import datetime
 
 ### Define Custom Tool ###
 @tool
@@ -21,93 +17,50 @@ def get_current_datetime(format: str = "%Y-%m-%d %H:%M:%S") -> str:
     except Exception as e:
         return f"Error formatting date/time: {e}"
 
-# List of tools the agent can use
 tools = [get_current_datetime]
 print("Custom tool defined.")
 
 
-
-### Set Up the Agent LLM ###
+### Set Up the LLM ###
 def get_agent_llm(model_name="qwen3:0.6b", temperature=0):
     """Initializes the ChatOllama model for the agent."""
-    # Ensure Ollama server is running (ollama serve)
     llm = ChatOllama(
         model=model_name,
-        temperature=temperature # Lower temperature for more predictable tool use
-        # Consider increasing num_ctx if expecting long conversations or complex reasoning
-        # num_ctx=8192
+        temperature=temperature,
+        extra_body={"think": False},  # Disable Qwen3 thinking tokens
     )
-    print(f"Initialized ChatOllama agent LLM with model: {model_name}")
+    print(f"Initialized ChatOllama with model: {model_name}")
     return llm
 
 
-### Create the Agent Prompt ###
-def get_agent_prompt(prompt_hub_name="hwchase17/openai-tools-agent"):
-    """Pulls the agent prompt template from LangChain Hub."""
-    # This prompt is designed for OpenAI but often works well with other tool-calling models.
-    # Alternatively, define a custom ChatPromptTemplate.
-    client = Client()
-    prompt = client.pull_prompt(prompt_hub_name)
-    print(f"Pulled agent prompt from Hub: {prompt_hub_name}")
-    # print("Prompt Structure:")
-    # prompt.pretty_print() # Uncomment to see the prompt structure
-    return prompt
-
-
-
-### Build the Agent ###
-def build_agent(llm, tools, prompt):
-    """Builds the tool-calling agent runnable."""
-    agent = create_tool_calling_agent(llm, tools, prompt)
-    print("Agent runnable created.")
+### Build the Agent (LangGraph) ###
+def build_agent(llm, tools):
+    agent = create_agent(  # updated function name
+        model=llm,
+        tools=tools,
+    )
+    print("LangGraph agent created.")
     return agent
 
 
+### Run the Agent ###
+def run_agent(agent, user_input):
+    """Invokes the LangGraph agent and prints the final response."""
+    print(f"\nInvoking agent with input: {user_input}")
+    try:
+        response = agent.invoke({"messages": [{"role": "user", "content": user_input}]})
+        # Final answer is in the last message
+        print("\nAgent Response:")
+        print(response["messages"][-1].content)
+    except Exception as e:
+        print(f"\nError during agent execution: {e}")
 
-### Create the Agent Executor ###
-def create_agent_executor(agent, tools):
-    """Creates the agent executor."""
-    agent_executor = AgentExecutor(
-        agent=agent,
-        tools=tools,
-        verbose=True # Set to True to see agent thoughts and tool calls
-    )
-    print("Agent executor created.")
-    return agent_executor
-
-
-
-# agent_llm = get_agent_llm()
-# agent_prompt = get_agent_prompt()
-# agent_runnable = build_agent(agent_llm, tools, agent_prompt)
-# agent_executor = create_agent_executor(agent_runnable, tools)
-
-
-def run_agent(executor, user_input):
-    """Runs the agent executor with the given input."""
-    print("\nInvoking agent...")
-    print(f"Input: {user_input}")
-    response = executor.invoke({"input": user_input})
-    print("\nAgent Response:")
-    print(response['output'])
 
 # --- Main Execution ---
 if __name__ == "__main__":
-    # 1. Define Tools (already done above)
+    agent_llm = get_agent_llm(model_name="qwen3:0.6b")
+    agent = build_agent(agent_llm, tools)
 
-    # 2. Get Agent LLM
-    agent_llm = get_agent_llm(model_name="qwen3:8b") # Use the chosen Qwen 3 model
-
-    # 3. Get Agent Prompt
-    agent_prompt = get_agent_prompt()
-
-    # 4. Build Agent Runnable
-    agent_runnable = build_agent(agent_llm, tools, agent_prompt)
-
-    # 5. Create Agent Executor
-    agent_executor = create_agent_executor(agent_runnable, tools)
-
-    # 6. Run Agent
-    run_agent(agent_executor, "What is the current date?")
-    run_agent(agent_executor, "What time is it right now? Use HH:MM format.")
-    run_agent(agent_executor, "Tell me a joke.") # Should not use the tool
+    run_agent(agent, "What is the current date?")
+    run_agent(agent, "What time is it right now? Use HH:MM format.")
+    run_agent(agent, "Tell me a joke.")  # Should not use the tool
